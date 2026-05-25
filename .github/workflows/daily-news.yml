@@ -15,7 +15,7 @@ on:
         required: false
         default: 'hot'
         type: choice
-        options: [hot, ai, crypto, a-stock, finance, tech]
+        options: [all, hot, ai, crypto, a-stock, finance, tech]
 
 permissions:
   contents: read
@@ -27,7 +27,7 @@ concurrency:
 jobs:
   # ── 综合资讯 (交易日早晚各一次) ──
   hot-news:
-    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'hot' }}
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'hot' || github.event.inputs.category == 'all' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -54,7 +54,7 @@ jobs:
 
   # ── 加密货币 (每6小时) ──
   crypto-news:
-    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'crypto' }}
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'crypto' || github.event.inputs.category == 'all' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -81,7 +81,7 @@ jobs:
 
   # ── A股公告 (交易日早晚各一次) ──
   astock-news:
-    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'a-stock' }}
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'a-stock' || github.event.inputs.category == 'all' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -108,7 +108,7 @@ jobs:
 
   # ── AI 技术资讯 (每天一次) ──
   ai-news:
-    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'ai' }}
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'ai' || github.event.inputs.category == 'all' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
