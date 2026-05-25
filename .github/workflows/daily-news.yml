@@ -44,7 +44,7 @@ jobs:
 
       - name: Fetch hot news
         run: |
-          python scripts/news.py category --cat hot --limit 10 --json > /tmp/hot_news.json
+          python scripts/news.py category --cat hot --limit 10 --json --translate > /tmp/hot_news.json
 
       - name: Notify Feishu
         env:
@@ -71,7 +71,7 @@ jobs:
 
       - name: Fetch crypto news
         run: |
-          python scripts/news.py category --cat crypto --limit 10 --json > /tmp/crypto_news.json
+          python scripts/news.py category --cat crypto --limit 10 --json --translate > /tmp/crypto_news.json
 
       - name: Notify Feishu
         env:
@@ -98,7 +98,7 @@ jobs:
 
       - name: Fetch A-stock announcements
         run: |
-          python scripts/news.py category --cat a-stock --limit 10 --json > /tmp/astock_news.json
+          python scripts/news.py category --cat a-stock --limit 10 --json --translate > /tmp/astock_news.json
 
       - name: Notify Feishu
         env:
@@ -125,7 +125,7 @@ jobs:
 
       - name: Fetch AI news
         run: |
-          python scripts/news.py category --cat ai --limit 10 --json > /tmp/ai_news.json
+          python scripts/news.py category --cat ai --limit 10 --json --translate > /tmp/ai_news.json
 
       - name: Notify Feishu
         env:

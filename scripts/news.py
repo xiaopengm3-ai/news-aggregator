@@ -765,6 +765,65 @@ def enrich_items(items, max_workers=10):
 
 
 # ═══════════════════════════════════════════════════════════════
+# TRANSLATION (Google Translate free API, no key required)
+# ═══════════════════════════════════════════════════════════════
+
+def _has_cjk(text):
+    """Detect if text contains Chinese/Japanese/Korean characters"""
+    if not text:
+        return False
+    cjk_count = 0
+    for ch in text:
+        cp = ord(ch)
+        if (0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF or
+            0x3040 <= cp <= 0x309F or 0xAC00 <= cp <= 0xD7AF):
+            cjk_count += 1
+    return cjk_count > len(text) * 0.3  # > 30% CJK → already translated-ish
+
+
+def _needs_translate(text):
+    """Check if text needs translation (non-empty, contains meaningful latin content)"""
+    if not text or not text.strip():
+        return False
+    if _has_cjk(text):
+        return False
+    # Count latin letters
+    latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+    return latin > 10
+
+
+def translate_text(text):
+    """Translate text to Chinese using free Google Translate API. Returns original on failure."""
+    if not _needs_translate(text):
+        return text
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {"client": "gtx", "sl": "auto", "tl": "zh-CN", "dt": "t", "q": text[:1000]}
+        resp = req_lib.get(url, params=params, headers={"User-Agent": UA}, timeout=5)
+        data = resp.json()
+        parts = []
+        for block in data[0]:
+            if block[0]:
+                parts.append(block[0])
+        return "".join(parts) if parts else text
+    except Exception:
+        return text
+
+
+def translate_items(items, fields=("title", "summary")):
+    """Translate specified fields of all items to Chinese. Modifies items in-place."""
+    if not HAS_BS4:
+        return items
+    print(f"  🌐 翻译 {len(items)} 条内容...", file=sys.stderr)
+    for item in items:
+        for field in fields:
+            text = item.get(field, "")
+            if _needs_translate(text):
+                item[field] = translate_text(text)
+    return items
+
+
+# ═══════════════════════════════════════════════════════════════
 # FILTERING & HELPERS
 # ═══════════════════════════════════════════════════════════════
 
@@ -860,7 +919,7 @@ def _fetch_one_source(src_def):
 # CORE LOGIC
 # ═══════════════════════════════════════════════════════════════
 
-def fetch_news(sources=None, category=None, keyword=None, limit=10, deep=False):
+def fetch_news(sources=None, category=None, keyword=None, limit=10, deep=False, translate=False):
     """Main entry point: fetch news from specified sources or category."""
     # Resolve sources
     if category:
@@ -951,6 +1010,10 @@ def fetch_news(sources=None, category=None, keyword=None, limit=10, deep=False):
     if deep and unique:
         unique = enrich_items(unique)
 
+    # Translate if requested
+    if translate and unique:
+        unique = translate_items(unique)
+
     return unique
 
 
@@ -986,7 +1049,7 @@ def format_news(items, title="新闻", summary_len=100):
 # ═══════════════════════════════════════════════════════════════
 
 def cmd_hot(args):
-    items = fetch_news(category="hot", keyword=args.keyword, limit=args.limit, deep=args.deep)
+    items = fetch_news(category="hot", keyword=args.keyword, limit=args.limit, deep=args.deep, translate=args.translate)
     if not items:
         print("暂无新闻数据")
         return
@@ -1001,7 +1064,7 @@ def cmd_category(args):
         print(f"不支持的分类: {args.cat}", file=sys.stderr)
         print(f"支持: {', '.join(CATEGORIES.keys())}", file=sys.stderr)
         sys.exit(1)
-    items = fetch_news(category=args.cat, keyword=args.keyword, limit=args.limit, deep=args.deep)
+    items = fetch_news(category=args.cat, keyword=args.keyword, limit=args.limit, deep=args.deep, translate=args.translate)
     if not items:
         print(f"暂无 {CATEGORIES[args.cat]['name']} 新闻")
         return
@@ -1028,7 +1091,7 @@ def cmd_source(args):
         return
 
     items = fetch_news(sources=','.join(valid), keyword=args.keyword,
-                       limit=args.limit, deep=args.deep)
+                       limit=args.limit, deep=args.deep, translate=args.translate)
     if not items:
         print("暂无数据")
         return
@@ -1042,7 +1105,7 @@ def cmd_all(args):
     """Fetch from ALL sources"""
     all_ids = list(ALL_SOURCES.keys())
     items = fetch_news(sources=','.join(all_ids), keyword=args.keyword,
-                       limit=args.limit, deep=args.deep)
+                       limit=args.limit, deep=args.deep, translate=args.translate)
     if not items:
         print("暂无数据")
         return
@@ -1108,6 +1171,7 @@ def main():
     hp.add_argument('--limit', '-n', type=int, default=10)
     hp.add_argument('--detail', '-d', type=int, default=100, help='摘要长度 (0=不显示, -1=全文)')
     hp.add_argument('--deep', action='store_true', help='深度抓取正文')
+    hp.add_argument('--translate', action='store_true', help='自动翻译英文内容为中文')
     hp.add_argument('--json', action='store_true', help='JSON 输出')
 
     # category
@@ -1117,6 +1181,7 @@ def main():
     cp.add_argument('--limit', '-n', type=int, default=10)
     cp.add_argument('--detail', '-d', type=int, default=100)
     cp.add_argument('--deep', action='store_true')
+    cp.add_argument('--translate', action='store_true', help='自动翻译英文内容为中文')
     cp.add_argument('--json', action='store_true')
 
     # source
@@ -1126,6 +1191,7 @@ def main():
     sp.add_argument('--limit', '-n', type=int, default=10)
     sp.add_argument('--detail', '-d', type=int, default=100)
     sp.add_argument('--deep', action='store_true')
+    sp.add_argument('--translate', action='store_true', help='自动翻译英文内容为中文')
     sp.add_argument('--json', action='store_true')
 
     # all
@@ -1134,6 +1200,7 @@ def main():
     ap.add_argument('--limit', '-n', type=int, default=10)
     ap.add_argument('--detail', '-d', type=int, default=100)
     ap.add_argument('--deep', action='store_true')
+    ap.add_argument('--translate', action='store_true', help='自动翻译英文内容为中文')
     ap.add_argument('--json', action='store_true')
 
     # sources
