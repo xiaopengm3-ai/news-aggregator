@@ -1,11 +1,11 @@
 ---
 name: news-aggregator
-description: 统一新闻聚合器。一站式覆盖 30+ 全球信息源（中文新闻、AI 技术博客、科技社区、财经数据、GitHub 热榜、微博热搜、Product Hunt 等），支持分类查询、关键词过滤、深度正文抓取、AI 智能解读。当用户询问最新新闻、AI 动态、科技资讯、开源项目、行业热点时使用。
+description: 统一新闻聚合器。一站式覆盖 40+ 全球信息源（中文新闻、AI 技术博客、科技社区、财经数据、A股公告、加密货币、GitHub 热榜、微博热搜、Product Hunt 等），支持分类查询、关键词过滤、深度正文抓取、AI 智能解读。当用户询问最新新闻、AI 动态、科技资讯、A股公告、币圈行情、开源项目、行业热点时使用。
 ---
 
 # 统一新闻聚合器 (News Aggregator)
 
-融合 RSS 订阅 + 网页抓取 + API 数据源，30+ 信息源一站式覆盖。
+融合 RSS 订阅 + 网页抓取 + API 数据源，40+ 信息源一站式覆盖。
 
 ## 无需 API Key
 
@@ -32,7 +32,13 @@ python scripts/news.py category --cat opensource
 python scripts/news.py source --src hackernews --limit 10
 python scripts/news.py source --src github,weibo,v2ex --limit 10
 
-# 全网扫描（所有 30+ 源）
+# 加密货币
+python scripts/news.py category --cat crypto --limit 10
+
+# A股公告（股东变更、公司公告等）
+python scripts/news.py category --cat a-stock --limit 10
+
+# 全网扫描（所有 40+ 源）
 python scripts/news.py all --limit 15
 
 # 关键词过滤（支持逗号分隔，自动扩展）
@@ -71,6 +77,18 @@ python scripts/news.py menu
 | 体育 | `sports` | 新浪体育、虎扑 |
 | 娱乐 | `entertainment` | 新浪娱乐 |
 
+### 加密货币
+
+| 分类 | 参数 | 来源 |
+|------|------|------|
+| 加密货币 | `crypto` | CoinDesk、CoinTelegraph、金色财经、吴说区块链、巴比特 |
+
+### A股市场
+
+| 分类 | 参数 | 来源 |
+|------|------|------|
+| A股公告 | `a-stock` | 东方财富公告（股东变更/公司公告）、巨潮资讯网（官方披露）、雪球热帖 |
+
 ### AI / 科技
 
 | 分类 | 参数 | 来源 |
@@ -104,6 +122,16 @@ python scripts/news.py source --src weibo --limit 10
 用户说"搜一下关于 DeepSeek 的新闻"：
 ```bash
 python scripts/news.py all --keyword "DeepSeek" --limit 15
+```
+
+用户说"最近币圈有什么消息"：
+```bash
+python scripts/news.py category --cat crypto --limit 10
+```
+
+用户说"A 股最近有什么公告"：
+```bash
+python scripts/news.py category --cat a-stock --limit 10
 ```
 
 用户想深入了解某条新闻：

@@ -156,6 +156,40 @@ ALL_SOURCES = {
         "name": "Ars Technica", "type": "rss", "cat": ["ai", "tech"],
         "url": "https://feeds.arstechnica.com/arstechnica/index",
     },
+    # ── Cryptocurrency ──
+    "coindesk": {
+        "name": "CoinDesk", "type": "rss", "cat": ["crypto"],
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+    },
+    "cointelegraph": {
+        "name": "CoinTelegraph", "type": "rss", "cat": ["crypto"],
+        "url": "https://cointelegraph.com/rss",
+    },
+    "jinse": {
+        "name": "金色财经", "type": "web", "cat": ["crypto"],
+        "url": "https://www.jinse.com/",
+    },
+    "wublock": {
+        "name": "吴说区块链", "type": "rss", "cat": ["crypto"],
+        "url": "https://wublock.substack.com/feed",
+    },
+    "8btc": {
+        "name": "巴比特", "type": "rss", "cat": ["crypto"],
+        "url": "https://www.8btc.com/rss",
+    },
+    # ── A-Share Announcements ──
+    "eastmoney-ann": {
+        "name": "东方财富公告", "type": "web", "cat": ["a-stock", "finance"],
+        "url": "https://np-anotice-stock.eastmoney.com/api/security/ann?page_size=30&page_index=1&ann_type=A",
+    },
+    "cninfo": {
+        "name": "巨潮资讯网", "type": "web", "cat": ["a-stock"],
+        "url": "http://www.cninfo.com.cn/new/hisAnnouncement/query",
+    },
+    "xueqiu": {
+        "name": "雪球热帖", "type": "web", "cat": ["a-stock"],
+        "url": "https://xueqiu.com/v4/statuses/public_timeline_by_category.json?category_id=6",
+    },
     # ── Web scraping sources (require requests+bs4) ──
     "hackernews": {
         "name": "Hacker News", "type": "web", "cat": ["tech"],
@@ -225,6 +259,14 @@ CATEGORIES = {
     "opensource": {
         "name": "开源项目",
         "sources": ["github"],
+    },
+    "crypto": {
+        "name": "加密货币",
+        "sources": ["coindesk", "cointelegraph", "jinse", "wublock", "8btc"],
+    },
+    "a-stock": {
+        "name": "A股公告",
+        "sources": ["eastmoney-ann", "cninfo", "xueqiu"],
     },
 }
 
@@ -545,6 +587,103 @@ def scrape_wallstreetcn(limit=10, keyword=None):
         return []
 
 
+def scrape_eastmoney_ann(limit=10, keyword=None):
+    """东方财富 A股公告 API"""
+    if not HAS_BS4:
+        return []
+    try:
+        url = "https://np-anotice-stock.eastmoney.com/api/security/ann?page_size=30&page_index=1&ann_type=A"
+        resp = req_lib.get(url, headers={"User-Agent": UA, "Referer": "https://data.eastmoney.com/"}, timeout=10)
+        data = resp.json()
+        items = []
+        for ann in data.get('data', {}).get('list', []):
+            title = ann.get('title', '')
+            code = ann.get('security_code', '')
+            name = ann.get('security_name_short', '')
+            notice_date = ann.get('notice_date', '')
+            url = f"https://data.eastmoney.com/notices/detail/{code}/{ann.get('art_code', '')}.html"
+            summary = ann.get('summary', '')
+            # Format: "[股票代码 股票名] 公告标题"
+            display_title = f"[{code} {name}] {title}" if code else title
+            if title:
+                items.append({
+                    "title": display_title, "url": url,
+                    "source": "东方财富公告", "time": str(notice_date),
+                    "summary": _clean(summary)[:200] if summary else "",
+                    "heat": "",
+                })
+        return _filter_keyword(items, keyword)[:limit]
+    except Exception:
+        return []
+
+
+def scrape_cninfo(limit=10, keyword=None):
+    """巨潮资讯网 A股公告 (官方披露平台)"""
+    if not HAS_BS4:
+        return []
+    try:
+        url = "http://www.cninfo.com.cn/new/hisAnnouncement/query"
+        headers = {
+            "User-Agent": UA,
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Referer": "http://www.cninfo.com.cn/new/commonUrl?url=disclosure/list/notice",
+        }
+        data = {"pageNum": 1, "pageSize": 30, "column": "szse", "tabName": "fulltext", "plate": "", "stock": "", "searchkey": "", "secid": "", "category": "", "trade": "", "seDate": ""}
+        resp = req_lib.post(url, headers=headers, data=data, timeout=10)
+        result = resp.json()
+        items = []
+        for ann in result.get('announcements', []) or result.get('data', []):
+            title = ann.get('announcementTitle', '') or ann.get('title', '')
+            code = ann.get('secCode', '') or ann.get('sec_code', '')
+            name = ann.get('secName', '') or ann.get('sec_name', '')
+            date = ann.get('announcementTime', '') or ann.get('notice_date', '')
+            ann_id = ann.get('announcementId', '') or ann.get('id', '')
+            adjunct = ann.get('adjunctUrl', '') or ann.get('adjunct_url', '')
+            display_title = f"[{code} {name}] {title}" if code else title
+            if title:
+                items.append({
+                    "title": _clean(display_title), "url": f"http://www.cninfo.com.cn/new/disclosure/detail?announcementId={ann_id}&orgId={adjunct}" if ann_id else "http://www.cninfo.com.cn/",
+                    "source": "巨潮资讯网", "time": str(date)[:10] if date else "",
+                    "summary": "", "heat": "",
+                })
+        return _filter_keyword(items, keyword)[:limit]
+    except Exception:
+        return []
+
+
+def scrape_xueqiu(limit=10, keyword=None):
+    """雪球热帖"""
+    if not HAS_BS4:
+        return []
+    try:
+        url = "https://xueqiu.com/v4/statuses/public_timeline_by_category.json?category_id=6&page=1&size=20"
+        headers = {"User-Agent": UA, "Referer": "https://xueqiu.com/"}
+        resp = req_lib.get(url, headers=headers, timeout=10)
+        data = resp.json()
+        items = []
+        for st in data.get('list', []):
+            title = _clean(st.get('title', '') or st.get('text', '') or '')
+            if not title:
+                continue
+            # Truncate long titles
+            if len(title) > 100:
+                title = title[:100] + "..."
+            sid = st.get('id', '')
+            uid = st.get('user', {}).get('id', '')
+            ts = st.get('created_at', 0)
+            time_str = datetime.fromtimestamp(ts / 1000).strftime('%m-%d %H:%M') if ts else ""
+            reply = st.get('reply_count', 0)
+            items.append({
+                "title": title, "url": f"https://xueqiu.com/{uid}/{sid}",
+                "source": "雪球", "time": time_str,
+                "heat": f"{reply} 评论" if reply else "",
+                "summary": "",
+            })
+        return _filter_keyword(items, keyword)[:limit]
+    except Exception:
+        return []
+
+
 def scrape_web_titles(html_text, source_name, base_url):
     """Generic web scraper: extract titles/links from HTML <a> tags"""
     items = []
@@ -686,6 +825,9 @@ def _fetch_one_source(src_def):
                 "V2EX": scrape_v2ex,
                 "腾讯新闻": scrape_tencent,
                 "华尔街见闻": scrape_wallstreetcn,
+                "东方财富公告": scrape_eastmoney_ann,
+                "巨潮资讯网": scrape_cninfo,
+                "雪球": scrape_xueqiu,
             }
             if name in scraper_map:
                 items = scraper_map[name](limit=limit, keyword=keyword)
