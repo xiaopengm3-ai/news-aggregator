@@ -1,0 +1,134 @@
+name: Daily News Digest
+
+on:
+  schedule:
+    # 综合资讯 + A股公告: 每个交易日 09:00 + 15:00 CST (01:00 + 07:00 UTC)
+    - cron: "0 1,7 * * 1-5"
+    # 加密货币 (波动大，每6小时): 08/14/20/02 CST
+    - cron: "0 0,6,12,18 * * *"
+    # AI 技术资讯: 每天 08:30 CST (00:30 UTC)
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+    inputs:
+      category:
+        description: '新闻分类 (hot/ai/crypto/a-stock/finance/tech)'
+        required: false
+        default: 'hot'
+        type: choice
+        options: [hot, ai, crypto, a-stock, finance, tech]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 综合资讯 (交易日早晚各一次) ──
+  hot-news:
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'hot' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Fetch hot news
+        run: |
+          python scripts/news.py category --cat hot --limit 10 --json > /tmp/hot_news.json
+
+      - name: Notify Feishu
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          python scripts/notify_feishu.py /tmp/hot_news.json "📰 综合资讯" --category hot
+
+  # ── 加密货币 (每6小时) ──
+  crypto-news:
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'crypto' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Fetch crypto news
+        run: |
+          python scripts/news.py category --cat crypto --limit 10 --json > /tmp/crypto_news.json
+
+      - name: Notify Feishu
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          python scripts/notify_feishu.py /tmp/crypto_news.json "🪙 加密货币快讯" --category crypto
+
+  # ── A股公告 (交易日早晚各一次) ──
+  astock-news:
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'a-stock' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Fetch A-stock announcements
+        run: |
+          python scripts/news.py category --cat a-stock --limit 10 --json > /tmp/astock_news.json
+
+      - name: Notify Feishu
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          python scripts/notify_feishu.py /tmp/astock_news.json "📊 A股公告" --category a-stock
+
+  # ── AI 技术资讯 (每天一次) ──
+  ai-news:
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.category == 'ai' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Fetch AI news
+        run: |
+          python scripts/news.py category --cat ai --limit 10 --json > /tmp/ai_news.json
+
+      - name: Notify Feishu
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          python scripts/notify_feishu.py /tmp/ai_news.json "🤖 AI 技术资讯" --category ai
