@@ -165,6 +165,14 @@ ALL_SOURCES = {
         "name": "CoinTelegraph", "type": "rss", "cat": ["crypto"],
         "url": "https://cointelegraph.com/rss",
     },
+    "blockworks": {
+        "name": "Blockworks", "type": "rss", "cat": ["crypto"],
+        "url": "https://blockworks.co/feed",
+    },
+    "decrypt": {
+        "name": "Decrypt", "type": "rss", "cat": ["crypto"],
+        "url": "https://decrypt.co/feed",
+    },
     "jinse": {
         "name": "金色财经", "type": "web", "cat": ["crypto"],
         "url": "https://www.jinse.com/",
@@ -262,7 +270,7 @@ CATEGORIES = {
     },
     "crypto": {
         "name": "加密货币",
-        "sources": ["coindesk", "cointelegraph", "jinse", "wublock", "8btc"],
+        "sources": ["coindesk", "cointelegraph", "blockworks", "decrypt", "jinse", "wublock", "8btc"],
     },
     "a-stock": {
         "name": "A股公告",

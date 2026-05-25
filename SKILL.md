@@ -81,7 +81,7 @@ python scripts/news.py menu
 
 | 分类 | 参数 | 来源 |
 |------|------|------|
-| 加密货币 | `crypto` | CoinDesk、CoinTelegraph、金色财经、吴说区块链、巴比特 |
+| 加密货币 | `crypto` | CoinDesk、CoinTelegraph、Blockworks、Decrypt、金色财经、吴说区块链、巴比特 |
 
 ### A股市场
 
