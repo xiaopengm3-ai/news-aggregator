@@ -1,0 +1,31 @@
+name: Drink Water Reminder
+
+on:
+  schedule:
+    # 每 1.5 小时提醒喝水 — 北京时间 08:00~23:00
+    # 整点: 08:00, 11:00, 14:00, 17:00, 20:00, 23:00 CST (00,03,06,09,12,15 UTC)
+    - cron: "0 0,3,6,9,12,15 * * *"
+    # 半点: 09:30, 12:30, 15:30, 18:30, 21:30 CST (01:30,04:30,07:30,10:30,13:30 UTC)
+    - cron: "30 1,4,7,10,13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Send water reminder
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          python scripts/remind_water.py
