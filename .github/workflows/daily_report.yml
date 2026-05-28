@@ -1,0 +1,51 @@
+name: Daily Report
+
+on:
+  schedule:
+    # 每天北京时间 09:30 统一推送 (01:30 UTC)
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TZ: Asia/Shanghai
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Fetch all news
+        run: |
+          python scripts/news.py category --cat hot    --limit 8 --json --translate > /tmp/hot_news.json
+          python scripts/news.py category --cat crypto --limit 5 --json --translate > /tmp/crypto_news.json
+          python scripts/news.py category --cat ai     --limit 5 --json --translate > /tmp/ai_news.json
+          python scripts/news.py category --cat a-stock --limit 5 --json --translate > /tmp/astock_news.json
+
+      - name: Send combined Feishu report
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          python scripts/notify_feishu.py --combined \
+            /tmp/hot_news.json    "📰 综合资讯" \
+            /tmp/crypto_news.json "🪙 加密货币" \
+            /tmp/ai_news.json     "🤖 AI 技术" \
+            /tmp/astock_news.json "📊 A股公告"
