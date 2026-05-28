@@ -33,9 +33,9 @@ def load_webhook_urls():
     return []
 
 
-def build_post_content(items, title, category="hot"):
-    """构建飞书 post 富文本消息内容"""
-    zh_cn_content = [[{"tag": "text", "text": f"{title}  ({len(items)} 条)\n\n"}]]
+def _build_section(items, emoji, title):
+    """构建单个新闻板块的富文本内容片段"""
+    blocks = [[{"tag": "text", "text": f"{emoji} {title}（{len(items)} 条）\n"}]]
 
     for i, item in enumerate(items, 1):
         item_title = item.get("title", "")
@@ -45,43 +45,44 @@ def build_post_content(items, title, category="hot"):
         summary = item.get("summary", "")[:300]
         heat = item.get("heat", "")
 
-        # 序号 + 标题 (带链接)
-        line = []
         if url:
-            line.append({"tag": "a", "text": f"{i}. {item_title}", "href": url})
+            blocks.append([{"tag": "a", "text": f"  {i}. {item_title}", "href": url}])
         else:
-            line.append({"tag": "text", "text": f"{i}. {item_title}"})
+            blocks.append([{"tag": "text", "text": f"  {i}. {item_title}"}])
 
-        zh_cn_content.append(line)
-
-        # 元信息行
         meta_parts = []
         if source:
-            meta_parts.append(f"📌 {source}")
+            meta_parts.append(source)
         if time_str:
             meta_parts.append(time_str)
         if heat:
-            meta_parts.append(f"🔥 {heat}")
-
+            meta_parts.append(heat)
         if meta_parts:
-            zh_cn_content.append([{"tag": "text", "text": " | ".join(meta_parts)}])
+            blocks.append([{"tag": "text", "text": f"     {' · '.join(meta_parts)}"}])
 
-        # 摘要
-        if summary:
-            zh_cn_content.append([{"tag": "text", "text": f"\n{summary[:200]}"}])
+        blocks.append([{"tag": "text", "text": "\n"}])
 
-        # 分隔
-        zh_cn_content.append([{"tag": "text", "text": "\n\n"}])
+    return blocks
 
-    # 添加 footer
+
+def build_combined_post(sections, report_title="📰 每日早报"):
+    """将多个新闻板块合并为一条飞书 post 消息"""
+    zh_cn_content = [[{"tag": "text", "text": f"{report_title}\n"}]]
+    total = sum(len(items) for items, _, _ in sections)
+    zh_cn_content.append([{"tag": "text", "text": f"━━━━ 共 {total} 条新闻 ━━━━\n\n"}])
+
+    for items, emoji, title in sections:
+        if not items:
+            continue
+        zh_cn_content.extend(_build_section(items, emoji, title))
+        zh_cn_content.append([{"tag": "text", "text": "\n"}])
+
     from datetime import datetime
-    footer = f"\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')} · 由 GitHub Actions 自动推送"
+    footer = f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')} · 由 GitHub Actions 自动推送"
     zh_cn_content.append([{"tag": "text", "text": footer}])
 
-    # 检查总长度，超出则截断
     body = json.dumps(zh_cn_content, ensure_ascii=False)
     if len(body) > FEISHU_MSG_LIMIT:
-        # 截取前 N 条
         truncated = []
         char_count = 0
         for block in zh_cn_content:
@@ -95,8 +96,21 @@ def build_post_content(items, title, category="hot"):
 
     return {
         "zh_cn": {
-            "title": title,
+            "title": report_title,
             "content": zh_cn_content,
+        }
+    }
+
+
+def build_post_content(items, title, category="hot"):
+    """构建飞书 post 富文本消息内容（单一类别，保留兼容）"""
+    emoji = title.split(" ", 1)[0] if " " in title else "📌"
+    clean_title = title.split(" ", 1)[1] if " " in title else title
+    blocks = _build_section(items, emoji, clean_title)
+    return {
+        "zh_cn": {
+            "title": clean_title,
+            "content": blocks,
         }
     }
 
@@ -127,30 +141,72 @@ def send_feishu(webhook_url, post_content):
 
 def main():
     parser = argparse.ArgumentParser(description="飞书通知脚本")
-    parser.add_argument("json_file", help="news.py 输出的 JSON 文件路径")
-    parser.add_argument("title", help="消息标题")
-    parser.add_argument("--category", "-c", default="hot", help="新闻分类")
-    args = parser.parse_args()
+    parser.add_argument("args", nargs="*", help="JSON 文件路径 + 标题 (成对使用)")
+    parser.add_argument("--combined", action="store_true", help="合并模式：多个 (json_file title) 对合并为一条消息")
+    parser.add_argument("--category", "-c", default="hot", help="新闻分类 (单文件模式)")
+
+    opts = parser.parse_args()
 
     urls = load_webhook_urls()
     if not urls:
         sys.exit(0)
 
-    with open(args.json_file, "r", encoding="utf-8") as f:
+    if opts.combined:
+        # combined mode: args are pairs of (json_file, title)
+        if len(opts.args) % 2 != 0:
+            print("[feishu] --combined 需要偶数个参数: json_file title ...", file=sys.stderr)
+            sys.exit(1)
+
+        sections = []
+        for i in range(0, len(opts.args), 2):
+            json_file = opts.args[i]
+            title = opts.args[i + 1]
+            emoji = title.split(" ", 1)[0]
+            clean_title = title.split(" ", 1)[1] if " " in title else title
+
+            with open(json_file, "r", encoding="utf-8") as f:
+                items = json.load(f)
+            if items:
+                sections.append((items, emoji, clean_title))
+                print(f"[feishu] 加载 {clean_title}: {len(items)} 条", file=sys.stderr)
+
+        if not sections:
+            print("[feishu] 没有新闻数据 — 跳过", file=sys.stderr)
+            sys.exit(0)
+
+        post_content = build_combined_post(sections)
+
+        for url in urls:
+            ok = send_feishu(url, post_content)
+            if ok:
+                total = sum(len(s[0]) for s in sections)
+                print(f"[feishu] 合并发送成功 → 共 {total} 条 ({len(sections)} 个板块)", file=sys.stderr)
+            else:
+                print("[feishu] 发送失败", file=sys.stderr)
+                sys.exit(1)
+        return
+
+    # single-file mode (backward compatible)
+    if len(opts.args) < 2:
+        parser.error("单文件模式需要 json_file 和 title 参数")
+    json_file = opts.args[0]
+    title = opts.args[1]
+
+    with open(json_file, "r", encoding="utf-8") as f:
         items = json.load(f)
 
     if not items:
-        print(f"[feishu] 没有 {args.category} 新闻数据 — 跳过", file=sys.stderr)
+        print(f"[feishu] 没有 {opts.category} 新闻数据 — 跳过", file=sys.stderr)
         sys.exit(0)
 
-    post_content = build_post_content(items, args.title, args.category)
+    post_content = build_post_content(items, title, opts.category)
 
     for url in urls:
         ok = send_feishu(url, post_content)
         if ok:
-            print(f"[feishu] 发送成功 → {args.title} ({len(items)} 条)", file=sys.stderr)
+            print(f"[feishu] 发送成功 → {title} ({len(items)} 条)", file=sys.stderr)
         else:
-            print(f"[feishu] 发送失败", file=sys.stderr)
+            print("[feishu] 发送失败", file=sys.stderr)
             sys.exit(1)
 
 
