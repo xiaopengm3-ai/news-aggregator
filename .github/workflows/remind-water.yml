@@ -2,8 +2,8 @@ name: Drink Water Reminder
 
 on:
   schedule:
-    # 每小时提醒喝水 — 北京时间 10:00~22:00 CST (02:00~14:00 UTC)
-    - cron: "0 2-14 * * *"
+    # 每小时提醒喝水 — 北京时间 10:00~18:00 CST (02:00~10:00 UTC)
+    - cron: "0 2-10 * * *"
   workflow_dispatch:
 
 env:
