@@ -2,8 +2,8 @@ name: Daily Report
 
 on:
   schedule:
-    # 每天北京时间 09:30 统一推送 (01:30 UTC)
-    - cron: "30 1 * * *"
+    # 每天北京时间 08:00 统一推送 (00:00 UTC)
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 env:
